@@ -1,0 +1,16 @@
+[project]
+name = "vacation-rental"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.2,<5.3",
+    "django-environ>=0.12,<1",
+    "django-filter>=26.2",
+    "djangorestframework>=3.18.3",
+    "openpyxl>=3.1.5",
+    "pandas>=3.0.6",
+    "pgvector>=0.5.1",
+    "pillow>=12.3.0",
+    "psycopg[binary]>=3.3.6",
+    "pyarrow>=26.0.0",
+]

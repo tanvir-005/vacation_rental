@@ -1,0 +1,37 @@
+services:
+  db:
+    image: ghcr.io/bengotow/postgis-with-pgvector:16-3.5
+    container_name: rental_db
+    environment:
+      POSTGRES_DB: vacation_rentals
+      POSTGRES_USER: rental_user
+      POSTGRES_PASSWORD: rental_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - rental_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rental_user -d vacation_rentals"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  web:
+    build: .
+    container_name: rental_web
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: db
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - /app/.venv
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  rental_postgres_data:
