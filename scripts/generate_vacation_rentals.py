@@ -1,231 +1,57 @@
 #!/usr/bin/env python3
-"""Generate deterministic synthetic vacation-rental data for the Django assignment.
+"""Generate 2,000 deterministic synthetic Bangladesh vacation-rental rows.
 
-This script uses only the Python standard library. It does not import Django,
-connect to a database, or download images.
-
-Example:
-    python generate_vacation_rentals.py
-    python generate_vacation_rentals.py --count 2500 --seed 7 --output data/properties.csv
+Locality coordinates are approximate reference points; generated points are small
+offsets from those points for spatial-search testing. Listings and image assignments
+are synthetic, not real or verified rentals. Uses only Python's standard library.
 """
-
-import argparse
-import csv
-import json
-import random
+import argparse, csv, json, random
 from pathlib import Path
 
+DESTINATIONS = [("Cox's Bazar", 21.43973, 92.00955, [('Kolatoli', 21.413, 91.982), ('Sugandha', 21.427, 91.978), ('Laboni Beach', 21.435, 91.976), ('Marine Drive', 21.387, 92.006)], ['Beach Apartment', 'Coastal Guesthouse', 'Sea-View Studio', 'Family Suite'], (2200, 16000), 'beach'), ('Dhaka', 23.810332, 90.412518, [('Gulshan', 23.7925, 90.4078), ('Banani', 23.7937, 90.4066), ('Dhanmondi', 23.7461, 90.3742), ('Uttara', 23.8759, 90.3795), ('Bashundhara Residential Area', 23.8151, 90.4255)], ['City Apartment', 'Serviced Apartment', 'Modern Studio', 'Family Flat'], (1800, 18000), 'city'), ('Sylhet', 24.899044, 91.87198, [('Zindabazar', 24.894, 91.868), ('Shahjalal Uposhohor', 24.8845, 91.8945), ('Tilagor', 24.912, 91.906), ('Airport Road', 24.954, 91.87)], ['Garden Guesthouse', 'Family Apartment', 'Hillside Retreat', 'City Studio'], (1600, 13000), 'hill'), ('Chattogram', 22.356851, 91.783182, [('Panchlaish', 22.359, 91.821), ('Khulshi', 22.365, 91.801), ('Agrabad', 22.326, 91.812), ('Patenga', 22.236, 91.813)], ['City Apartment', 'Business Suite', 'Family Flat', 'Coastal Guesthouse'], (1500, 15000), 'city'), ("Saint Martin's Island", 20.6274, 92.3223, [('West Beach', 20.627, 92.323), ('North Beach', 20.635, 92.326), ('Island Village', 20.622, 92.326)], ['Island Bungalow', 'Beach Cottage', 'Sea-View Room', 'Eco Guesthouse'], (2500, 18000), 'island'), ('Bandarban', 22.195344, 92.219464, [('Bandarban Town', 22.1953, 92.2195), ('Meghla', 22.177, 92.194), ('Nilachal', 22.174, 92.203), ('Milanchari', 22.166, 92.211)], ['Hill Cottage', 'Nature Lodge', 'Wooden Cabin', 'Family Guesthouse'], (1700, 13500), 'hill'), ('Rangamati', 22.643168, 92.191859, [('Reserve Bazar', 22.633, 92.2), ('Tabalchhari', 22.638, 92.208), ('Kaptai Lake Area', 22.65, 92.18)], ['Lake-View Cottage', 'Hill Retreat', 'Family Guesthouse', 'Wooden Cabin'], (1700, 14000), 'hill'), ('Kuakata', 21.8167, 90.1167, [('Kuakata Beach Road', 21.816, 90.116), ('Zero Point', 21.817, 90.118), ('Lemua', 21.82, 90.11)], ['Beach Cottage', 'Coastal Villa', 'Family Guesthouse', 'Sea-View Apartment'], (1800, 14500), 'beach'), ('Rajshahi', 24.363589, 88.624135, [('Shaheb Bazar', 24.374, 88.604), ('Laxmipur', 24.366, 88.609), ('Padma Residential Area', 24.358, 88.601)], ['City Apartment', 'Family Flat', 'Serviced Apartment', 'Garden Guesthouse'], (1200, 11000), 'city'), ('Khulna', 22.845641, 89.540328, [('Sonadanga', 22.833, 89.54), ('Khalishpur', 22.866, 89.536), ('Boyra', 22.833, 89.514), ('Nirala', 22.829, 89.545)], ['City Apartment', 'Family Flat', 'Serviced Apartment', 'Garden Guesthouse'], (1200, 12000), 'city')]
+AMENITIES = {
+ "beach": ["WiFi","Air conditioning","Kitchen","Free parking","Balcony","Sea view","Hot water","TV","Breakfast","Family rooms","Backup power"],
+ "island": ["WiFi","Fan","Air conditioning","Breakfast","Sea view","Mosquito net","Hot water","Family rooms","Restaurant access","Solar power"],
+ "hill": ["WiFi","Hot water","Free parking","Mountain view","Balcony","Breakfast","Garden","Family rooms","Backup power","Restaurant access"],
+ "city": ["WiFi","Air conditioning","Kitchen","Free parking","Washer","Workspace","TV","Elevator","Security","Backup power","Hot water"],
+}
+IMAGES = ['https://images.unsplash.com/photo-1600585154340-be6161a56a0c', 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c', 'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea', 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d', 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3', 'https://images.unsplash.com/photo-1600607687644-c7171b42498f', 'https://images.unsplash.com/photo-1600566752355-35792bedcfea']
+FIELDS = ["property_id","title","description","city","country","latitude","longitude","address","price_per_night","max_guests","amenities","image_urls"]
 
-# Approximate city centers in Bangladesh: (latitude, longitude).
-# Generated coordinates are synthetic points near these centers, not verified
-# property addresses or a claim that a rental exists at that location.
-LOCATIONS = [
-    {
-        "city": "Cox's Bazar",
-        "country": "Bangladesh",
-        "latitude": 21.4272,
-        "longitude": 91.9702,
-        "areas": ["Kolatoli", "Sugandha", "Laboni Beach Road", "Marine Drive"],
-        "property_types": ["Beachfront Apartment", "Coastal Villa", "Family Guesthouse", "Sea-View Studio"],
-    },
-    {
-        "city": "Dhaka",
-        "country": "Bangladesh",
-        "latitude": 23.8103,
-        "longitude": 90.4125,
-        "areas": ["Gulshan", "Banani", "Dhanmondi", "Uttara", "Bashundhara"],
-        "property_types": ["City Apartment", "Serviced Apartment", "Modern Studio", "Family Flat"],
-    },
-    {
-        "city": "Sylhet",
-        "country": "Bangladesh",
-        "latitude": 24.8949,
-        "longitude": 91.8687,
-        "areas": ["Zindabazar", "Shahjalal Uposhohor", "Tilagor", "Airport Road"],
-        "property_types": ["Garden Cottage", "Family Guesthouse", "Hillside Retreat", "City Apartment"],
-    },
-    {
-        "city": "Chattogram",
-        "country": "Bangladesh",
-        "latitude": 22.3569,
-        "longitude": 91.7832,
-        "areas": ["Panchlaish", "Khulshi", "Agrabad", "Patenga"],
-        "property_types": ["City Apartment", "Business Suite", "Family Flat", "Coastal Guesthouse"],
-    },
-    {
-        "city": "Saint Martin's Island",
-        "country": "Bangladesh",
-        "latitude": 20.6274,
-        "longitude": 92.3223,
-        "areas": ["West Beach", "North Beach", "Island Village"],
-        "property_types": ["Island Bungalow", "Beach Cottage", "Sea-View Room", "Eco Guesthouse"],
-    },
-    {
-        "city": "Bandarban",
-        "country": "Bangladesh",
-        "latitude": 22.1953,
-        "longitude": 92.2184,
-        "areas": ["Meghla", "Nilachal", "Bandarban Town", "Chimbuk Road"],
-        "property_types": ["Hilltop Cottage", "Nature Lodge", "Wooden Cabin", "Family Guesthouse"],
-    },
-    {
-        "city": "Rangamati",
-        "country": "Bangladesh",
-        "latitude": 22.7324,
-        "longitude": 92.2985,
-        "areas": ["Kaptai Lake", "Reserve Bazar", "Tabalchhari"],
-        "property_types": ["Lake-View Cottage", "Hill Retreat", "Family Guesthouse", "Wooden Cabin"],
-    },
-    {
-        "city": "Kuakata",
-        "country": "Bangladesh",
-        "latitude": 21.8167,
-        "longitude": 90.1167,
-        "areas": ["Beach Road", "Zero Point", "Lemua"],
-        "property_types": ["Beach Cottage", "Coastal Villa", "Family Guesthouse", "Sea-View Apartment"],
-    },
-    {
-        "city": "Rajshahi",
-        "country": "Bangladesh",
-        "latitude": 24.3745,
-        "longitude": 88.6042,
-        "areas": ["Shaheb Bazar", "Laxmipur", "Padma Residential Area"],
-        "property_types": ["City Apartment", "Family Flat", "Serviced Apartment", "Garden Guesthouse"],
-    },
-    {
-        "city": "Khulna",
-        "country": "Bangladesh",
-        "latitude": 22.8456,
-        "longitude": 89.5403,
-        "areas": ["Sonadanga", "Khalishpur", "Boyra", "Nirala"],
-        "property_types": ["City Apartment", "Family Flat", "Serviced Apartment", "Garden Guesthouse"],
-    },
-]
-
-AMENITIES = [
-    "WiFi",
-    "Air conditioning",
-    "Kitchen",
-    "Free parking",
-    "Washer",
-    "Workspace",
-    "TV",
-    "Balcony",
-    "Swimming pool",
-    "Breakfast",
-    "Garden",
-    "Pet-friendly",
-    "Hot water",
-    "Security",
-    "Generator backup",
-]
-
-# These are example external image URLs, not locally stored image files.
-# Keep them as data in the CSV; the importer should not download them.
-IMAGE_URLS = [
-    "https://images.unsplash.com/photo-1600585154340-be6161a56a0c",
-    "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c",
-    "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea",
-    "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d",
-    "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3",
-    "https://images.unsplash.com/photo-1600607687644-c7171b42498f",
-    "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d",
-    "https://images.unsplash.com/photo-1600566752355-35792bedcfea",
-]
-
-FIELDNAMES = [
-    "property_id",
-    "title",
-    "description",
-    "city",
-    "country",
-    "latitude",
-    "longitude",
-    "address",
-    "price_per_night",
-    "max_guests",
-    "amenities",
-    "image_urls",
-]
-
-
-def build_property(index: int, rng: random.Random) -> dict[str, str]:
-    location = rng.choice(LOCATIONS)
-    property_type = rng.choice(location["property_types"])
-    area = rng.choice(location["areas"])
-    features = rng.sample(AMENITIES, k=rng.randint(3, 7))
-    guests = rng.randint(1, 12)
-
-    # Synthetic points jittered around approximate city centers.
-    # Keep jitter modest; these are test coordinates, not real listings.
-    latitude = location["latitude"] + rng.uniform(-0.045, 0.045)
-    longitude = location["longitude"] + rng.uniform(-0.045, 0.045)
-
-    # Broad synthetic price bands in BDT, varied by destination.
-    if location["city"] in {"Cox's Bazar", "Saint Martin's Island", "Kuakata"}:
-        low, high = 1800, 18000
-    elif location["city"] in {"Bandarban", "Rangamati", "Sylhet"}:
-        low, high = 1500, 14000
-    else:
-        low, high = 1200, 16000
-
-    price = round(rng.uniform(low, high) / 50) * 50
-    title = f"{property_type} near {area}"
-    description = (
-        f"Synthetic sample listing for testing search and filtering. "
-        f"This {property_type.lower()} is placed in the {area} area of "
-        f"{location['city']}. Amenities and coordinates are generated test data."
-    )
-    selected_images = rng.sample(IMAGE_URLS, k=rng.randint(1, 3))
-
-    return {
-        "property_id": f"PROP-{index:06d}",
-        "title": title,
-        "description": description,
-        "city": location["city"],
-        "country": location["country"],
-        "latitude": f"{latitude:.6f}",
-        "longitude": f"{longitude:.6f}",
-        "address": f"{area}, {location['city']}, Bangladesh",
-        "price_per_night": f"{price:.2f}",
-        "max_guests": str(guests),
-        # JSON arrays are valid CSV cell values when correctly quoted.
-        "amenities": json.dumps(features, ensure_ascii=False),
-        "image_urls": json.dumps(selected_images, ensure_ascii=False),
-    }
-
-
-def generate_csv(output: Path, count: int, seed: int) -> None:
-    if count < 1:
-        raise ValueError("--count must be at least 1")
-
+def generate(output, count=2000, seed=42):
+    if count < 1: raise ValueError("--count must be at least 1")
     rng = random.Random(seed)
+    schedule = [DESTINATIONS[i % len(DESTINATIONS)] for i in range(count)]
+    rng.shuffle(schedule)
     output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=FIELDS); writer.writeheader()
+        for i, dest in enumerate(schedule, 1):
+            city, center_lat, center_lon, areas, types, price_range, profile = dest
+            country = 'Bangladesh'
+            area, alat, alon = rng.choice(areas)
+            kind = rng.choice(types)
+            lat, lon = alat + rng.uniform(-0.0015,0.0015), alon + rng.uniform(-0.0015,0.0015)
+            guests = rng.choices([1,2,3,4,5,6,8,10], weights=[3,12,10,28,12,18,12,5], k=1)[0]
+            low, high = price_range
+            multiplier = 1.25 if ("Serviced" in kind or "Villa" in kind) else 0.8 if ("Studio" in kind or "Room" in kind) else 1.0
+            price = round((rng.uniform(low, high)*multiplier)/50)*50
+            amenity_list = rng.sample(AMENITIES[profile], k=rng.randint(4,min(8,len(AMENITIES[profile]))))
+            image_list = rng.sample(IMAGES, k=rng.randint(1,3))
+            writer.writerow({
+              "property_id": f"BD-SYN-{i:06d}", "title": f"{kind} in {area}",
+              "description": f"Synthetic demonstration listing in {area}, {city}, Bangladesh. Designed for testing spatial search, distance calculations, amenity display, pagination, and semantic location search. Not a verified rental.",
+              "city": city, "country": country, "latitude": f"{lat:.6f}", "longitude": f"{lon:.6f}",
+              "address": f"{area}, {city}, {country}", "price_per_night": f"{price:.2f}",
+              "max_guests": str(guests), "amenities": json.dumps(amenity_list, ensure_ascii=False),
+              "image_urls": json.dumps(image_list, ensure_ascii=False)
+            })
 
-    with output.open("w", encoding="utf-8", newline="") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=FIELDNAMES)
-        writer.writeheader()
-        for index in range(1, count + 1):
-            writer.writerow(build_property(index, rng))
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--count", type=int, default=1000, help="number of rows (default: 1000)")
-    parser.add_argument("--seed", type=int, default=42, help="random seed for reproducible output (default: 42)")
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("data/properties.csv"),
-        help="output CSV path (default: data/properties.csv)",
-    )
-    args = parser.parse_args()
-
-    generate_csv(args.output, args.count, args.seed)
-    print(f"Generated {args.count:,} synthetic properties: {args.output}")
-    print(f"Random seed: {args.seed}")
-    print("Reminder: listings, coordinates, prices, and amenities are synthetic.")
-
-
-if __name__ == "__main__":
-    main()
+def main():
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--count", type=int, default=2000); p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--output", type=Path, default=Path("data/properties_v2.csv"))
+    a=p.parse_args(); generate(a.output,a.count,a.seed)
+    print(f"Generated {a.count:,} synthetic listings: {a.output}")
+    print("Coordinates are approximate locality-based test points; listings are not verified rentals.")
+if __name__ == "__main__": main()

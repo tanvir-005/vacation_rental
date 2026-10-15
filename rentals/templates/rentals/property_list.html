@@ -1,0 +1,169 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Properties | StayFinder</title>
+    <link rel="stylesheet" href="{% static 'rentals/css/styles.css' %}">
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-inner">
+            <a class="brand" href="{% url 'home' %}">StayFinder</a>
+            <a class="header-link" href="{% url 'property-list' %}">Browse stays</a>
+        </div>
+    </header>
+
+    <main>
+        <section class="page-heading">
+            <p class="eyebrow">Explore stays</p>
+            <h1>Find your stay</h1>
+
+            <form class="search-panel"
+                  action="{% url 'property-list' %}"
+                  method="get">
+                <div class="field">
+                    <label for="id_destination">Destination</label>
+                    <input
+                        type="text"
+                        id="id_destination"
+                        name="q"
+                        value="{{ destination }}"
+                        placeholder="Where do you want to go?"
+                        maxlength="255"
+                        required
+                    >
+                </div>
+
+                <div class="field">
+                    <label for="id_radius_km">Search radius (km)</label>
+                    <input
+                        type="number"
+                        id="id_radius_km"
+                        name="radius_km"
+                        value="{{ radius_km }}"
+                        min="1"
+                        max="500"
+                        step="1"
+                        required
+                    >
+                </div>
+
+                <button type="submit">Search</button>
+            </form>
+        </section>
+
+        {% if selected_location %}
+            <h2>Properties near {{ selected_location.name }}</h2>
+            <p class="results-meta">
+                Within {{ radius_km }} km ·
+                {{ page_obj.paginator.count }} properties found
+            </p>
+        {% elif destination %}
+            <div class="empty-state">
+                <h2>No matching destination found</h2>
+                <p>Try another destination and search again.</p>
+            </div>
+        {% else %}
+            <p class="results-meta">Enter a destination to find properties.</p>
+        {% endif %}
+
+        <section class="property-grid">
+            {% for property in page_obj %}
+                <article class="property-card">
+                    {% with image=property.images.all|first %}
+                        {% if image %}
+                            {% if image.image %}
+                                <a href="{% url 'property-detail' property.id %}?q={{ destination|urlencode }}&radius_km={{ radius_km }}">
+                                    <img
+                                        class="property-image"
+                                        src="{{ image.image.url }}"
+                                        alt="{{ image.caption|default:property.title }}"
+                                        loading="lazy"
+                                    >
+                                </a>
+                            {% elif image.image_url %}
+                                <a href="{% url 'property-detail' property.id %}?q={{ destination|urlencode }}&radius_km={{ radius_km }}">
+                                    <img
+                                        class="property-image"
+                                        src="{{ image.image_url }}"
+                                        alt="{{ image.caption|default:property.title }}"
+                                        loading="lazy"
+                                    >
+                                </a>
+                            {% else %}
+                                <div class="image-placeholder">No image available</div>
+                            {% endif %}
+                        {% else %}
+                            <div class="image-placeholder">No image available</div>
+                        {% endif %}
+                    {% endwith %}
+
+                    <div class="property-card-body">
+                        <h3>
+                            <a href="{% url 'property-detail' property.id %}?q={{ destination|urlencode }}&radius_km={{ radius_km }}">
+                                {{ property.title }}
+                            </a>
+                        </h3>
+
+                        <p class="muted">
+                            {{ property.address|default:property.location.name }}
+                        </p>
+
+                        <p>{{ property.description|truncatewords:22 }}</p>
+
+                        <ul class="tag-list">
+                            <li>{{ property.max_guests }} guests</li>
+                            {% for amenity in property.amenities|slice:":3" %}
+                                <li>{{ amenity }}</li>
+                            {% endfor %}
+                        </ul>
+
+                        <p class="property-price">
+                            BDT {{ property.price_per_night }}
+                            <span class="muted">/ night</span>
+                        </p>
+
+                        <p class="muted">
+                            {{ property.distance.km|floatformat:2 }} km from destination
+                        </p>
+
+                        <a class="button"
+                           href="{% url 'property-detail' property.id %}?q={{ destination|urlencode }}&radius_km={{ radius_km }}">
+                            View property
+                        </a>
+                    </div>
+                </article>
+            {% empty %}
+                <div class="empty-state">
+                    <h2>No properties found</h2>
+                    <p>Try a different destination or increase your search radius.</p>
+                </div>
+            {% endfor %}
+        </section>
+
+        {% if page_obj.paginator.num_pages > 1 %}
+            <nav class="pagination" aria-label="Pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?q={{ destination|urlencode }}&radius_km={{ radius_km }}&page=1">First</a>
+                    <a href="?q={{ destination|urlencode }}&radius_km={{ radius_km }}&page={{ page_obj.previous_page_number }}">Previous</a>
+                {% endif %}
+
+                <span>
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                </span>
+
+                {% if page_obj.has_next %}
+                    <a href="?q={{ destination|urlencode }}&radius_km={{ radius_km }}&page={{ page_obj.next_page_number }}">Next</a>
+                    <a href="?q={{ destination|urlencode }}&radius_km={{ radius_km }}&page={{ page_obj.paginator.num_pages }}">Last</a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    </main>
+
+    <footer class="site-footer">
+        StayFinder · Find your next stay in Bangladesh
+    </footer>
+</body>
+</html>

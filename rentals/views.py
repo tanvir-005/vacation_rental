@@ -1,42 +1,89 @@
+
+from django.contrib.gis.db.models.functions import Distance
+from django.contrib.gis.measure import D
+
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from rentals.serializers import LocationAutocompleteSerializer
+from rentals.models import Property
+from rentals.serializers import (
+    LocationAutocompleteQuerySerializer,
+    LocationAutocompleteSerializer,
+    PropertySearchQuerySerializer,
+    PropertySearchSerializer,
+)
 from rentals.services.semantic_search import search_locations
 
 
 class LocationAutocompleteView(APIView):
     def get(self, request):
-        query = request.query_params.get("q", "").strip()
+        query_serializer = LocationAutocompleteQuerySerializer(
+            data=request.query_params
+        )
+        query_serializer.is_valid(raise_exception=True)
 
-        try:
-            limit = int(request.query_params.get("limit", 5))
-        except ValueError:
-            return Response(
-                {"error": "INVALID_LIMIT", "message": "Limit must be an integer."},
-                status=400,
-            )
-
-        if not 1 <= limit <= 20:
-            return Response(
-                {"error": "INVALID_LIMIT", "message": "Limit must be between 1 and 20."},
-                status=400,
-            )
-
-        if not query:
-            return Response(
-                {"error": "MISSING_QUERY", "message": "Provide a search query using q."},
-                status=400,
-            )
+        query = query_serializer.validated_data["q"]
+        limit = query_serializer.validated_data["limit"]
 
         locations = search_locations(query, limit=limit)
 
-        serializer = LocationAutocompleteSerializer(
+        response_serializer = LocationAutocompleteSerializer(
             locations,
             many=True,
         )
 
         return Response({
             "query": query,
-            "results": serializer.data,
+            "results": response_serializer.data,
+        })
+
+
+class PropertySearchView(APIView):
+    def get(self, request):
+        query_serializer = PropertySearchQuerySerializer(
+            data=request.query_params
+        )
+        query_serializer.is_valid(raise_exception=True)
+
+        query = query_serializer.validated_data["q"]
+        radius_km = query_serializer.validated_data["radius_km"]
+        limit = query_serializer.validated_data["limit"]
+
+        location = next(iter(search_locations(query, limit=1)), None)
+
+        if location is None or location.point is None:
+            return Response({
+                "query": query,
+                "message": "No matching location with coordinates was found.",
+                "selected_location": None,
+                "results": [],
+            })
+
+        properties = (
+            Property.objects
+            .filter(
+                point__distance_lte=(
+                    location.point,
+                    D(km=radius_km),
+                )
+            )
+            .annotate(
+                distance=Distance("point", location.point)
+            )
+            .order_by("distance", "id")[:limit]
+        )
+
+        response_serializer = PropertySearchSerializer(
+            properties,
+            many=True,
+        )
+
+        return Response({
+            "query": query,
+            "selected_location": {
+                "id": location.id,
+                "name": location.name,
+            },
+            "radius_km": radius_km,
+            "results": response_serializer.data,
         })

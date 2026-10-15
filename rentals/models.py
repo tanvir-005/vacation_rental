@@ -35,6 +35,7 @@ class Property(models.Model):
     description = models.TextField(blank=True)
     address = models.CharField(max_length=500, blank=True)
     point = models.PointField(geography=True, srid=4326)
+    embedding = VectorField(dimensions=384, null=True, blank=True)
     amenities = models.JSONField(default=list, blank=True)
     price_per_night = models.DecimalField(max_digits=10, decimal_places=2)
     max_guests = models.PositiveSmallIntegerField(default=1)
@@ -49,6 +50,15 @@ class Property(models.Model):
 
     class Meta:
         ordering = ["title"]
+        indexes = [
+            HnswIndex(
+                name="property_embedding_hnsw",
+                fields=["embedding"],
+                m=16,
+                ef_construction=64,
+                opclasses=["vector_cosine_ops"],
+            ),
+        ]
 
     def __str__(self):
         return self.title

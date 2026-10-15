@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from django.db.models import Case, IntegerField, Value, When
 from pgvector.django import CosineDistance
 from sentence_transformers import SentenceTransformer
 
@@ -17,11 +18,24 @@ def get_embedding_model():
 def search_locations(query, limit=5):
     query = query.strip()
 
-    if not query:
+    if len(query) < 2 or limit < 1:
         return Location.objects.none()
 
-    model = get_embedding_model()
+    # Prefix matching is more useful than vector similarity for partial names.
+    prefix_matches = Location.objects.filter(
+        name__istartswith=query
+    ).annotate(
+        relevance=Case(
+            When(name__iexact=query, then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        )
+    ).order_by("relevance", "name")
 
+    if prefix_matches.exists():
+        return prefix_matches[:limit]
+
+    model = get_embedding_model()
     query_embedding = model.encode(
         query,
         normalize_embeddings=True,
@@ -30,7 +44,7 @@ def search_locations(query, limit=5):
 
     return (
         Location.objects
-        .exclude(embedding__isnull=True)
+        .filter(embedding__isnull=False)
         .annotate(
             distance=CosineDistance("embedding", query_embedding)
         )

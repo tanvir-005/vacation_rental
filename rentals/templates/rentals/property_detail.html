@@ -1,0 +1,114 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ property.title }} | StayFinder</title>
+    <link rel="stylesheet" href="{% static 'rentals/css/styles.css' %}">
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-inner">
+            <a class="brand" href="{% url 'home' %}">StayFinder</a>
+
+            {% if selected_location %}
+                <a class="header-link"
+                   href="{% url 'property-list' %}?q={{ selected_location.name|urlencode }}&radius_km={{ radius_km|default:20 }}">
+                    Back to results
+                </a>
+            {% else %}
+                <a class="header-link" href="{% url 'property-list' %}">
+                    Browse stays
+                </a>
+            {% endif %}
+        </div>
+    </header>
+
+    <main>
+        <section class="detail-heading">
+            <p class="eyebrow">Property details</p>
+            <h1>{{ property.title }}</h1>
+            <p class="muted">
+                {{ property.address|default:property.location.name }}
+            </p>
+
+            {% if selected_location and distance_km is not None %}
+                <p class="muted">
+                    {{ distance_km|floatformat:2 }} km from {{ selected_location.name }}
+                </p>
+            {% endif %}
+        </section>
+
+        <section class="detail-gallery" aria-label="Property images">
+            {% for image in property.images.all %}
+                {% if image.image %}
+                    <img
+                        src="{{ image.image.url }}"
+                        alt="{{ image.caption|default:property.title }}"
+                        loading="lazy"
+                    >
+                {% elif image.image_url %}
+                    <img
+                        src="{{ image.image_url }}"
+                        alt="{{ image.caption|default:property.title }}"
+                        loading="lazy"
+                    >
+                {% endif %}
+            {% empty %}
+                <div class="image-placeholder">No images available</div>
+            {% endfor %}
+        </section>
+
+        <section class="detail-layout">
+            <div>
+                <h2>About this property</h2>
+                <p>
+                    {{ property.description|default:"No description available." }}
+                </p>
+
+                <h2>Amenities</h2>
+                {% if property.amenities %}
+                    <ul class="tag-list">
+                        {% for amenity in property.amenities %}
+                            <li>{{ amenity }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="muted">No amenities listed.</p>
+                {% endif %}
+            </div>
+
+            <aside class="detail-panel">
+                <p class="detail-price">BDT {{ property.price_per_night }}</p>
+                <p class="muted">per night</p>
+
+                <hr>
+
+                <h2>Property information</h2>
+                <p>Maximum guests: {{ property.max_guests }}</p>
+                <p>Destination: {{ property.location.name }}</p>
+
+                {% if selected_location and distance_km is not None %}
+                    <p>Distance: {{ distance_km|floatformat:2 }} km</p>
+                {% endif %}
+
+                {% if selected_location %}
+                    <a class="button"
+                       href="{% url 'property-list' %}?q={{ selected_location.name|urlencode }}&radius_km={{ radius_km|default:20 }}">
+                        Back to nearby properties
+                    </a>
+                {% else %}
+                    <a class="button" href="{% url 'property-list' %}">
+                        Browse properties
+                    </a>
+                {% endif %}
+            </aside>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        StayFinder · Find your next stay in Bangladesh
+    </footer>
+</body>
+</html>
