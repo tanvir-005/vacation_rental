@@ -2,6 +2,7 @@
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.measure import D
 
+from pgvector.django import CosineDistance
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -12,7 +13,10 @@ from rentals.serializers import (
     PropertySearchQuerySerializer,
     PropertySearchSerializer,
 )
-from rentals.services.semantic_search import search_locations
+from rentals.services.semantic_search import (
+    get_embedding_model,
+    search_locations,
+)
 
 
 class LocationAutocompleteView(APIView):
@@ -45,32 +49,64 @@ class PropertySearchView(APIView):
         )
         query_serializer.is_valid(raise_exception=True)
 
-        query = query_serializer.validated_data["q"]
-        radius_km = query_serializer.validated_data["radius_km"]
-        limit = query_serializer.validated_data["limit"]
+        data = query_serializer.validated_data
+        query = data["q"]
+        radius_km = data["radius_km"]
+        limit = data["limit"]
+        destination = data["destination"]
 
-        location = next(iter(search_locations(query, limit=1)), None)
+        model = get_embedding_model()
+        query_embedding = model.encode(
+            query,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+        ).tolist()
 
-        if location is None or location.point is None:
-            return Response({
-                "query": query,
-                "message": "No matching location with coordinates was found.",
-                "selected_location": None,
-                "results": [],
-            })
+        properties = Property.objects.filter(
+            embedding__isnull=False
+        )
 
-        properties = (
-            Property.objects
-            .filter(
+        selected_location = None
+
+        if destination:
+            selected_location = next(
+                iter(search_locations(destination, limit=1)),
+                None,
+            )
+
+            if (
+                selected_location is None
+                or selected_location.point is None
+            ):
+                return Response({
+                    "query": query,
+                    "destination": destination,
+                    "message": (
+                        "No matching destination with coordinates was found."
+                    ),
+                    "selected_location": None,
+                    "results": [],
+                })
+
+            properties = properties.filter(
                 point__distance_lte=(
-                    location.point,
+                    selected_location.point,
                     D(km=radius_km),
                 )
+            ).annotate(
+                distance=Distance("point", selected_location.point)
             )
+
+        properties = (
+            properties
             .annotate(
-                distance=Distance("point", location.point)
+                semantic_distance=CosineDistance(
+                    "embedding",
+                    query_embedding,
+                )
             )
-            .order_by("distance", "id")[:limit]
+            .select_related("location")
+            .order_by("semantic_distance", "id")[:limit]
         )
 
         response_serializer = PropertySearchSerializer(
@@ -78,12 +114,17 @@ class PropertySearchView(APIView):
             many=True,
         )
 
-        return Response({
+        response = {
             "query": query,
-            "selected_location": {
-                "id": location.id,
-                "name": location.name,
-            },
-            "radius_km": radius_km,
+            "destination": destination or None,
+            "radius_km": radius_km if destination else None,
             "results": response_serializer.data,
-        })
+        }
+
+        if selected_location:
+            response["selected_location"] = {
+                "id": selected_location.id,
+                "name": selected_location.name,
+            }
+
+        return Response(response)

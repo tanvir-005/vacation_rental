@@ -1,3 +1,4 @@
+
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
@@ -11,17 +12,9 @@
     <header class="site-header">
         <div class="header-inner">
             <a class="brand" href="{% url 'home' %}">StayFinder</a>
-
-            {% if selected_location %}
-                <a class="header-link"
-                   href="{% url 'property-list' %}?q={{ selected_location.name|urlencode }}&radius_km={{ radius_km|default:20 }}">
-                    Back to results
-                </a>
-            {% else %}
-                <a class="header-link" href="{% url 'property-list' %}">
-                    Browse stays
-                </a>
-            {% endif %}
+            <a class="header-link" href="{{ back_url }}">
+                Back to results
+            </a>
         </div>
     </header>
 
@@ -29,13 +22,15 @@
         <section class="detail-heading">
             <p class="eyebrow">Property details</p>
             <h1>{{ property.title }}</h1>
+
             <p class="muted">
                 {{ property.address|default:property.location.name }}
             </p>
 
             {% if selected_location and distance_km is not None %}
                 <p class="muted">
-                    {{ distance_km|floatformat:2 }} km from {{ selected_location.name }}
+                    {{ distance_km|floatformat:2 }} km from
+                    {{ selected_location.name }}
                 </p>
             {% endif %}
         </section>
@@ -56,18 +51,22 @@
                     >
                 {% endif %}
             {% empty %}
-                <div class="image-placeholder">No images available</div>
+                <div class="image-placeholder">
+                    No images available
+                </div>
             {% endfor %}
         </section>
 
         <section class="detail-layout">
             <div>
                 <h2>About this property</h2>
+
                 <p>
                     {{ property.description|default:"No description available." }}
                 </p>
 
                 <h2>Amenities</h2>
+
                 {% if property.amenities %}
                     <ul class="tag-list">
                         {% for amenity in property.amenities %}
@@ -80,7 +79,9 @@
             </div>
 
             <aside class="detail-panel">
-                <p class="detail-price">BDT {{ property.price_per_night }}</p>
+                <p class="detail-price">
+                    BDT {{ property.price_per_night }}
+                </p>
                 <p class="muted">per night</p>
 
                 <hr>
@@ -90,19 +91,14 @@
                 <p>Destination: {{ property.location.name }}</p>
 
                 {% if selected_location and distance_km is not None %}
-                    <p>Distance: {{ distance_km|floatformat:2 }} km</p>
+                    <p>
+                        Distance: {{ distance_km|floatformat:2 }} km
+                    </p>
                 {% endif %}
 
-                {% if selected_location %}
-                    <a class="button"
-                       href="{% url 'property-list' %}?q={{ selected_location.name|urlencode }}&radius_km={{ radius_km|default:20 }}">
-                        Back to nearby properties
-                    </a>
-                {% else %}
-                    <a class="button" href="{% url 'property-list' %}">
-                        Browse properties
-                    </a>
-                {% endif %}
+                <a class="button" href="{{ back_url }}">
+                    Back to results
+                </a>
             </aside>
         </section>
     </main>

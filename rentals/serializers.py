@@ -38,18 +38,24 @@ class PropertySearchQuerySerializer(serializers.Serializer):
         min_value=1,
         max_value=100,
     )
+    destination = serializers.CharField(
+        required=False,
+        default="",
+        allow_blank=True,
+        trim_whitespace=True,
+        max_length=255,
+    )
 
 
 class LocationAutocompleteSerializer(serializers.ModelSerializer):
-    distance = serializers.FloatField(read_only=True)
-
     class Meta:
         model = Location
-        fields = ["id", "name", "distance"]
+        fields = ["id", "name"]
 
 
 class PropertySearchSerializer(serializers.ModelSerializer):
     distance_km = serializers.SerializerMethodField()
+    semantic_distance = serializers.FloatField(read_only=True)
 
     class Meta:
         model = Property
@@ -62,7 +68,13 @@ class PropertySearchSerializer(serializers.ModelSerializer):
             "max_guests",
             "amenities",
             "distance_km",
+            "semantic_distance",
         ]
 
     def get_distance_km(self, obj):
-        return round(obj.distance.km, 2)
+        distance = getattr(obj, "distance", None)
+
+        if distance is None:
+            return None
+
+        return round(distance.km, 2)

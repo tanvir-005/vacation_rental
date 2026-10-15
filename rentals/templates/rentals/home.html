@@ -1,3 +1,4 @@
+
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
@@ -7,8 +8,8 @@
     <meta name="description" content="Discover vacation rentals across Bangladesh.">
     <title>StayFinder | Find your next stay</title>
     <link rel="stylesheet" href="{% static 'rentals/css/styles.css' %}">
+    <script src="{% static 'rentals/js/autocomplete.js' %}" defer></script>
 </head>
-<script src="{% static 'rentals/js/autocomplete.js' %}" defer></script>
 <body>
     <header class="site-header">
         <div class="header-inner">
@@ -23,48 +24,108 @@
             <h1>Find a place worth staying for.</h1>
             <p class="subtitle">
                 Explore vacation rentals across Bangladesh.
-                Search by destination and discover properties nearby.
+                Search by destination or describe your ideal stay.
             </p>
 
             <form class="search-panel" action="{% url 'home' %}" method="get">
-                <div class="field destination-field">
-                    <label for="id_destination">Where to?</label>
-                    <input
-                        type="text"
-                        name="destination"
-                        id="id_destination"
-                        value="{{ form.destination.value|default:'' }}"
-                        placeholder="Try Cox's Bazar or Sylhet"
-                        maxlength="255"
-                        autocomplete="off"
-                        required
-                    >
-                    <div
-                        id="location-suggestions"
-                        class="suggestions"
-                        role="listbox"
-                        aria-label="Destination suggestions"
-                        hidden
-                    ></div>
-                    <p id="suggestion-status" class="suggestion-status" aria-live="polite"></p>
-                    {% for error in form.destination.errors %}
+                <div class="field">
+                    <label>How would you like to search?</label>
+
+                    <div class="search-mode-options">
+                        {% for value, label in form.mode.field.choices %}
+                            <label class="search-mode-option">
+                                <input
+                                    type="radio"
+                                    name="mode"
+                                    value="{{ value }}"
+                                    {% if form.mode.value == value or not form.is_bound and value == 'place' %}
+                                        checked
+                                    {% endif %}
+                                >
+                                <span>
+                                    {% if value == "place" %}
+                                        Explore a Place
+                                    {% else %}
+                                        Find a Stay
+                                    {% endif %}
+                                </span>
+                            </label>
+                        {% endfor %}
+                    </div>
+
+                    {% for error in form.mode.errors %}
                         <p class="form-error">{{ error }}</p>
                     {% endfor %}
                 </div>
 
-                <div class="field">
-                    <label for="id_radius_km">Search radius (km)</label>
+                <div id="place-fields">
+                    <div class="field destination-field">
+                        <label for="id_destination">Where do you want to go?</label>
+                        <input
+                            type="text"
+                            name="destination"
+                            id="id_destination"
+                            value="{{ form.destination.value|default:'' }}"
+                            placeholder="Try Cox's Bazar or Sylhet"
+                            maxlength="255"
+                            autocomplete="off"
+                        >
+
+                        <div
+                            id="location-suggestions"
+                            class="suggestions"
+                            role="listbox"
+                            aria-label="Destination suggestions"
+                            hidden
+                        ></div>
+
+                        <p
+                            id="suggestion-status"
+                            class="suggestion-status"
+                            aria-live="polite"
+                        ></p>
+
+                        {% for error in form.destination.errors %}
+                            <p class="form-error">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+
+                    <div class="field">
+                        <label for="id_radius_km">Search radius (km)</label>
+                        <input
+                            type="number"
+                            name="radius_km"
+                            id="id_radius_km"
+                            value="{{ form.radius_km.value|default:20 }}"
+                            min="1"
+                            max="500"
+                            step="any"
+                        >
+
+                        {% for error in form.radius_km.errors %}
+                            <p class="form-error">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div id="stay-fields" class="field" hidden>
+                    <label for="id_semantic_query">
+                        Describe your ideal stay
+                    </label>
                     <input
-                        type="number"
-                        name="radius_km"
-                        id="id_radius_km"
-                        value="{{ form.radius_km.value|default:20 }}"
-                        min="1"
-                        max="500"
-                        step="any"
-                        required
+                        type="text"
+                        name="semantic_query"
+                        id="id_semantic_query"
+                        value="{{ form.semantic_query.value|default:'' }}"
+                        placeholder="A quiet cottage with mountain views"
+                        maxlength="255"
                     >
-                    {% for error in form.radius_km.errors %}
+
+                    <p class="muted">
+                        Describe the property, atmosphere, or amenities you want.
+                    </p>
+
+                    {% for error in form.semantic_query.errors %}
                         <p class="form-error">{{ error }}</p>
                     {% endfor %}
                 </div>
@@ -77,5 +138,52 @@
     <footer class="site-footer">
         StayFinder · Find your next stay in Bangladesh
     </footer>
+
+    <script>
+        (() => {
+            const modeInputs = document.querySelectorAll(
+                'input[name="mode"]'
+            );
+            const placeFields = document.getElementById("place-fields");
+            const stayFields = document.getElementById("stay-fields");
+            const destinationInput = document.getElementById("id_destination");
+            const radiusInput = document.getElementById("id_radius_km");
+            const semanticInput = document.getElementById("id_semantic_query");
+
+            function updateSearchMode() {
+                const selectedMode = document.querySelector(
+                    'input[name="mode"]:checked'
+                )?.value || "place";
+
+                const isPlace = selectedMode === "place";
+
+                placeFields.hidden = !isPlace;
+                stayFields.hidden = isPlace;
+
+                destinationInput.required = isPlace;
+                radiusInput.required = isPlace;
+                semanticInput.required = !isPlace;
+
+                if (!isPlace) {
+                    const suggestions = document.getElementById(
+                        "location-suggestions"
+                    );
+                    const status = document.getElementById(
+                        "suggestion-status"
+                    );
+
+                    suggestions.hidden = true;
+                    suggestions.replaceChildren();
+                    status.textContent = "";
+                }
+            }
+
+            modeInputs.forEach((input) => {
+                input.addEventListener("change", updateSearchMode);
+            });
+
+            updateSearchMode();
+        })();
+    </script>
 </body>
 </html>

@@ -1,9 +1,11 @@
+
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Discover vacation rentals across Bangladesh.">
     <title>Properties | StayFinder</title>
     <link rel="stylesheet" href="{% static 'rentals/css/styles.css' %}">
 </head>
@@ -20,33 +22,76 @@
             <p class="eyebrow">Explore stays</p>
             <h1>Find your stay</h1>
 
-            <form class="search-panel"
-                  action="{% url 'property-list' %}"
-                  method="get">
+            <form
+                class="search-panel"
+                action="{% url 'property-list' %}"
+                method="get"
+            >
                 <div class="field">
-                    <label for="id_destination">Destination</label>
-                    <input
-                        type="text"
-                        id="id_destination"
-                        name="q"
-                        value="{{ destination }}"
-                        placeholder="Where do you want to go?"
-                        maxlength="255"
-                        required
-                    >
+                    <label>How would you like to search?</label>
+
+                    <div class="search-mode-options">
+                        <label class="search-mode-option">
+                            <input
+                                type="radio"
+                                name="mode"
+                                value="place"
+                                {% if mode == "place" %}checked{% endif %}
+                            >
+                            <span>Explore a Place</span>
+                        </label>
+
+                        <label class="search-mode-option">
+                            <input
+                                type="radio"
+                                name="mode"
+                                value="stay"
+                                {% if mode == "stay" %}checked{% endif %}
+                            >
+                            <span>Find a Stay</span>
+                        </label>
+                    </div>
                 </div>
 
-                <div class="field">
-                    <label for="id_radius_km">Search radius (km)</label>
+                <div id="place-fields">
+                    <div class="field">
+                        <label for="id_destination">Destination</label>
+                        <input
+                            type="text"
+                            id="id_destination"
+                            name="q"
+                            value="{{ destination }}"
+                            placeholder="Where do you want to go?"
+                            maxlength="255"
+                            autocomplete="off"
+                        >
+                    </div>
+
+                    <div class="field">
+                        <label for="id_radius_km">Search radius (km)</label>
+                        <input
+                            type="number"
+                            id="id_radius_km"
+                            name="radius_km"
+                            value="{{ radius_km }}"
+                            min="1"
+                            max="500"
+                            step="any"
+                        >
+                    </div>
+                </div>
+
+                <div id="stay-fields" class="field" hidden>
+                    <label for="id_semantic_query">
+                        Describe your ideal stay
+                    </label>
                     <input
-                        type="number"
-                        id="id_radius_km"
-                        name="radius_km"
-                        value="{{ radius_km }}"
-                        min="1"
-                        max="500"
-                        step="1"
-                        required
+                        type="text"
+                        id="id_semantic_query"
+                        name="search"
+                        value="{{ semantic_query }}"
+                        placeholder="e.g. A quiet cottage with a garden"
+                        maxlength="255"
                     >
                 </div>
 
@@ -54,19 +99,32 @@
             </form>
         </section>
 
-        {% if selected_location %}
+        {% if search_error %}
+            <div class="empty-state">
+                <h2>Destination not found</h2>
+                <p>{{ search_error }}</p>
+            </div>
+        {% elif mode == "place" and selected_location %}
             <h2>Properties near {{ selected_location.name }}</h2>
             <p class="results-meta">
                 Within {{ radius_km }} km ·
                 {{ page_obj.paginator.count }} properties found
             </p>
-        {% elif destination %}
+        {% elif mode == "stay" and semantic_query %}
+            <h2>Search results</h2>
+            <p class="results-meta">
+                {{ page_obj.paginator.count }} properties found,
+                ranked by semantic relevance
+            </p>
+        {% elif mode == "place" and destination %}
             <div class="empty-state">
                 <h2>No matching destination found</h2>
                 <p>Try another destination and search again.</p>
             </div>
         {% else %}
-            <p class="results-meta">Enter a destination to find properties.</p>
+            <p class="results-meta">
+                Choose a destination or describe your ideal stay.
+            </p>
         {% endif %}
 
         <section class="property-grid">
@@ -75,7 +133,7 @@
                     {% with image=property.images.all|first %}
                         {% if image %}
                             {% if image.image %}
-                                <a href="{% url 'property-detail' property.id %}?q={{ destination|urlencode }}&radius_km={{ radius_km }}">
+                                <a href="{% url 'property-detail' property.id %}?q={{ destination|urlencode }}&radius_km={{ radius_km }}&search={{ semantic_query|urlencode }}&mode={{ mode|urlencode }}">
                                     <img
                                         class="property-image"
                                         src="{{ image.image.url }}"
@@ -84,7 +142,7 @@
                                     >
                                 </a>
                             {% elif image.image_url %}
-                                <a href="{% url 'property-detail' property.id %}?q={{ destination|urlencode }}&radius_km={{ radius_km }}">
+                                <a href="{% url 'property-detail' property.id %}?q={{ destination|urlencode }}&radius_km={{ radius_km }}&search={{ semantic_query|urlencode }}&mode={{ mode|urlencode }}">
                                     <img
                                         class="property-image"
                                         src="{{ image.image_url }}"
@@ -102,7 +160,7 @@
 
                     <div class="property-card-body">
                         <h3>
-                            <a href="{% url 'property-detail' property.id %}?q={{ destination|urlencode }}&radius_km={{ radius_km }}">
+                            <a href="{% url 'property-detail' property.id %}?q={{ destination|urlencode }}&radius_km={{ radius_km }}&search={{ semantic_query|urlencode }}&mode={{ mode|urlencode }}">
                                 {{ property.title }}
                             </a>
                         </h3>
@@ -125,38 +183,55 @@
                             <span class="muted">/ night</span>
                         </p>
 
-                        <p class="muted">
-                            {{ property.distance.km|floatformat:2 }} km from destination
-                        </p>
+                        {% if selected_location and property.distance %}
+                            <p class="muted">
+                                {{ property.distance.km|floatformat:2 }}
+                                km from destination
+                            </p>
+                        {% endif %}
 
-                        <a class="button"
-                           href="{% url 'property-detail' property.id %}?q={{ destination|urlencode }}&radius_km={{ radius_km }}">
+                        {% if mode == "stay" %}
+                            <p class="muted">
+                                Semantic distance:
+                                {{ property.semantic_distance|floatformat:3 }}
+                            </p>
+                        {% endif %}
+
+                        <a
+                            class="button"
+                            href="{% url 'property-detail' property.id %}?q={{ destination|urlencode }}&radius_km={{ radius_km }}&search={{ semantic_query|urlencode }}&mode={{ mode|urlencode }}"
+                        >
                             View property
                         </a>
                     </div>
                 </article>
             {% empty %}
-                <div class="empty-state">
-                    <h2>No properties found</h2>
-                    <p>Try a different destination or increase your search radius.</p>
-                </div>
+                {% if not search_error and destination or semantic_query %}
+                    <div class="empty-state">
+                        <h2>No properties found</h2>
+                        <p>
+                            Try another destination or describe your ideal stay differently.
+                        </p>
+                    </div>
+                {% endif %}
             {% endfor %}
         </section>
 
         {% if page_obj.paginator.num_pages > 1 %}
             <nav class="pagination" aria-label="Pagination">
                 {% if page_obj.has_previous %}
-                    <a href="?q={{ destination|urlencode }}&radius_km={{ radius_km }}&page=1">First</a>
-                    <a href="?q={{ destination|urlencode }}&radius_km={{ radius_km }}&page={{ page_obj.previous_page_number }}">Previous</a>
+                    <a href="?mode={{ mode|urlencode }}&q={{ destination|urlencode }}&radius_km={{ radius_km }}&search={{ semantic_query|urlencode }}&page=1">First</a>
+                    <a href="?mode={{ mode|urlencode }}&q={{ destination|urlencode }}&radius_km={{ radius_km }}&search={{ semantic_query|urlencode }}&page={{ page_obj.previous_page_number }}">Previous</a>
                 {% endif %}
 
                 <span>
-                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                    Page {{ page_obj.number }}
+                    of {{ page_obj.paginator.num_pages }}
                 </span>
 
                 {% if page_obj.has_next %}
-                    <a href="?q={{ destination|urlencode }}&radius_km={{ radius_km }}&page={{ page_obj.next_page_number }}">Next</a>
-                    <a href="?q={{ destination|urlencode }}&radius_km={{ radius_km }}&page={{ page_obj.paginator.num_pages }}">Last</a>
+                    <a href="?mode={{ mode|urlencode }}&q={{ destination|urlencode }}&radius_km={{ radius_km }}&search={{ semantic_query|urlencode }}&page={{ page_obj.next_page_number }}">Next</a>
+                    <a href="?mode={{ mode|urlencode }}&q={{ destination|urlencode }}&radius_km={{ radius_km }}&search={{ semantic_query|urlencode }}&page={{ page_obj.paginator.num_pages }}">Last</a>
                 {% endif %}
             </nav>
         {% endif %}
@@ -165,5 +240,37 @@
     <footer class="site-footer">
         StayFinder · Find your next stay in Bangladesh
     </footer>
+
+    <script>
+        (() => {
+            const inputs = document.querySelectorAll('input[name="mode"]');
+            const placeFields = document.getElementById("place-fields");
+            const stayFields = document.getElementById("stay-fields");
+            const destination = document.getElementById("id_destination");
+            const radius = document.getElementById("id_radius_km");
+            const search = document.getElementById("id_semantic_query");
+
+            function updateMode() {
+                const mode = document.querySelector(
+                    'input[name="mode"]:checked'
+                )?.value || "place";
+
+                const isPlace = mode === "place";
+
+                placeFields.hidden = !isPlace;
+                stayFields.hidden = isPlace;
+
+                destination.required = isPlace;
+                radius.required = isPlace;
+                search.required = !isPlace;
+            }
+
+            inputs.forEach(input => {
+                input.addEventListener("change", updateMode);
+            });
+
+            updateMode();
+        })();
+    </script>
 </body>
 </html>
